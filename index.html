@@ -66,6 +66,9 @@
   th, td { text-align:left; padding:6px 4px; font-size:.9rem; vertical-align:middle; }
   th { color:var(--muted); font-weight:500; font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; }
   #rows td input, #rows td select { padding:9px 10px; }
+  @media (min-width:600px) { #rows td:nth-child(1) select { min-width:132px; } #rows td:nth-child(2) select { min-width:112px; } } /* "Comercial"/"Gasolina" sem cortes */
+  #detail { overflow-x:auto; }                                   /* em telemóvel a tabela desliza dentro do cartão */
+  #detail table { min-width:420px; }
   .num { text-align:right; font-variant-numeric: tabular-nums; }
 
   .errors { color:var(--err); background:#fdecea; border-radius:10px; padding:10px 14px; margin-top:16px; font-size:.9rem; }
@@ -124,7 +127,7 @@
   .collected { margin-top:12px; font-size:.82rem; background:var(--accent-soft); border:1px solid #cdebdc; border-radius:10px; padding:10px 12px; }
   .collected strong { font-weight:600; } .collected ul { margin:4px 0 0; padding-left:18px; }
   .chat-form { display:flex; gap:8px; margin-top:12px; }
-  .chat-form input { flex:1; font:inherit; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); }
+  .chat-form input { flex:1; min-width:0; font:inherit; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); }
   .chat-form input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
   .btn:disabled { opacity:.55; cursor:not-allowed; }
   .chat-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:-8px 0 12px; }
@@ -138,6 +141,8 @@
   .btn.mic.busy { cursor:progress; }
   @keyframes pulse { 0%,100% { box-shadow:0 0 0 0 rgba(179,38,30,.45); } 50% { box-shadow:0 0 0 8px rgba(179,38,30,0); } }
   .msg.ai.speaking { border-color:var(--accent); }
+  .chat-alt { margin-top:12px; text-align:center; }
+  .linkbtn { font:inherit; font-size:.85rem; background:none; border:0; padding:4px 0 0; color:var(--accent-dark); cursor:pointer; text-decoration:underline; }
   /* Gráfico custo vs. tempo */
   :root { --fuel:#d0612b; }
   .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:.82rem; margin-bottom:6px; }
@@ -210,6 +215,11 @@
   <!-- PASSO 2 — Frota -->
   <section class="step" data-step="2" data-name="Frota">
     <h1>Fale-nos da sua frota</h1>
+    <div id="fromChat" class="tip hidden" style="margin:0 0 18px">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg></span>
+      <span style="flex:1"><span id="fromChatText"></span>
+        <br><button class="linkbtn" id="formToChat" type="button">← Voltar à conversa</button></span>
+    </div>
 
     <div id="quick">
       <h3>Tipo de veículo</h3>
@@ -330,6 +340,9 @@
       <button class="btn mic" id="micBtn" type="button" title="Falar (clique para começar e para terminar)" aria-label="Falar">🎤</button>
       <button class="btn primary" id="chatSend" type="submit">Enviar</button>
     </form>
+    <div class="chat-alt">
+      <button class="btn ghost" id="chatToForm" type="button">✎ Ver e completar os dados no formulário</button>
+    </div>
   </section>
 
   <!-- PASSO 5 — Resultados -->
@@ -506,7 +519,7 @@
   $('next').onclick = () => {
     if (step === '2' && !checkFleet()) return;          // não avança com dados inválidos
     if (step === '4') { run(); return show('5'); }
-    if (step === '5') { resetChat(); return show('1'); }
+    if (step === '5') { resetChat(); $('fromChat').classList.add('hidden'); return show('1'); }
     const f = flow(), nxt = f[f.indexOf(step) + 1];
     if (nxt === 'chat') startChat();
     show(nxt);
@@ -713,6 +726,38 @@
       generateReport();                                         // resultados + relatório final automaticamente
     }, 1500);
   }
+
+  // ---------- Da conversa para o formulário detalhado (e de volta) ----------
+  function setMode(m) {
+    const r = document.querySelector(`input[name=mode][value=${m}]`);
+    r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  function chatToForm() {
+    if (window.Voice) { window.Voice.stop(); if (window.Voice.isRecording) window.Voice.stopRecording().catch(() => {}); }
+    const t = chat.latest, got = [];
+    if (t && t.fleet.length) {                                  // grupos recolhidos → linhas da tabela
+      $('rows').innerHTML = '';
+      t.fleet.forEach((g) => addRow(g));
+      got.push(`${t.fleet.length} grupo${t.fleet.length > 1 ? 's' : ''} de veículos`);
+    }
+    if (t && t.co2Mode) { document.querySelector(`input[name=co2][value=${t.co2Mode}]`).checked = true; got.push('modo de emissões'); }
+    const setA = (path, v, label) => { if (v != null) { document.querySelector(`[data-path="${path}"]`).value = v; got.push(label); } };
+    if (t) {
+      setA('years', t.overrides.years, 'horizonte');
+      setA('tax.incentive', t.overrides.incentive, 'incentivo');
+      setA('prices.electricity', t.overrides.electricityPrice, 'preço da eletricidade');
+    }
+    $('fromChatText').textContent = got.length
+      ? `Dados trazidos da conversa: ${got.join(', ')}. Complete ou corrija o que faltar e carregue em Seguinte.`
+      : 'A conversa ainda não recolheu dados — preencha a tabela abaixo.';
+    $('fromChat').classList.remove('hidden');
+    setMode('detail');
+    show('2');
+  }
+  $('chatToForm').onclick = chatToForm;
+  $('formToChat').onclick = () => { setMode('chat'); startChat(); show('chat'); };
+  // ao escolher outro modo no passo 1, a nota "trazido da conversa" deixa de fazer sentido
+  document.querySelectorAll('input[name=mode]').forEach((r) => r.addEventListener('change', () => { if (step === '1') $('fromChat').classList.add('hidden'); }));
 
   $('chatForm').addEventListener('submit', (e) => {
     e.preventDefault();
