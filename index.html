@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador de Frota Elétrica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg-top:#0f2a24; --bg-mid:#1f5a47; --bg-low:#7fb89a;
+          --card:#faf9f6; --ink:#16211e; --muted:#5f6b67; --line:#e6e4df;
+          --accent:#12a06e; --accent-dark:#0c7a53; --accent-soft:#e8f6ef;
+          --ice:#9aa0a8; --err:#b3261e; --warn:#8a5a00; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; font-family:"Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--ink);
+         background: radial-gradient(1200px 500px at 70% 110%, rgba(255,255,255,.18), transparent 60%),
+                     linear-gradient(180deg, var(--bg-top) 0%, var(--bg-mid) 55%, var(--bg-low) 100%) fixed; }
+  .brand { max-width:680px; margin:0 auto; padding:28px 16px 0; color:#e9f5ef; display:flex; align-items:center; gap:10px; font-weight:600; letter-spacing:.2px; }
+  .brand svg { width:22px; height:22px; }
+  .card { max-width:680px; margin:20px auto 48px; background:var(--card); border-radius:14px; border-top:4px solid var(--accent);
+          box-shadow:0 20px 60px rgba(0,0,0,.25); padding:32px 36px 24px; }
+  @media (max-width:600px){ .card{ margin:16px; padding:24px 18px 18px; } }
+
+  .prog-head { display:flex; justify-content:space-between; font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); font-weight:500; }
+  .prog { height:6px; background:#e7e6e2; border-radius:99px; margin:10px 0 28px; overflow:hidden; }
+  .prog > div { height:100%; background:var(--accent); border-radius:99px; transition: width .35s ease; }
+
+  h1 { font-size:2rem; font-weight:500; margin:0 0 22px; line-height:1.15; letter-spacing:-.01em; }
+  @media (max-width:600px){ h1{ font-size:1.5rem; } }
+  h3 { font-size:.82rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:500; margin:22px 0 10px; }
+
+  .step { display:none; animation: fade .25s ease; }
+  .step.active { display:block; }
+  @keyframes fade { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform:none; } }
+
+  /* Cartões de opção (radios estilizados) */
+  .opts { display:grid; gap:14px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .opt { position:relative; display:flex; cursor:pointer; }
+  .opt .box { flex:1; } /* a caixa ocupa toda a altura da célula → cartões da mesma linha ficam iguais */
+  .opt input { position:absolute; opacity:0; pointer-events:none; }
+  .opt .box { background:#fff; border:1.5px solid var(--line); border-radius:12px; padding:26px 16px; min-height:162px;
+              display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; text-align:center;
+              transition: border-color .15s, box-shadow .15s, transform .15s; }
+  .opt.sm .box { min-height:0; padding:14px; flex-direction:row; }
+  .opt .box svg { width:34px; height:34px; color:#5d6670; }
+  .opt.sm .box svg { width:22px; height:22px; }
+  .opt .t { font-weight:500; }
+  .opt .d { font-size:.8rem; color:var(--muted); }
+  .opt:hover .box { border-color:#bfe3d1; transform: translateY(-1px); }
+  .opt input:checked + .box { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .opt input:checked + .box svg { color:var(--accent); }
+  .opt input:focus-visible + .box { outline:2px solid var(--accent-dark); outline-offset:2px; }
+
+  .tip { display:flex; gap:12px; align-items:center; background:var(--accent-soft); border:1px solid #cdebdc; border-radius:10px; padding:12px 14px; margin-top:22px; font-size:.88rem; }
+  .tip .ic { flex:none; width:32px; height:32px; border-radius:50%; background:#fff; display:grid; place-items:center; color:var(--accent); }
+  .tip .ic svg { width:18px; height:18px; }
+  .tip.warn { background:#fff6e6; border-color:#f3dfb8; } .tip.warn .ic { color:var(--warn); }
+
+  label.f { font-size:.82rem; color:var(--muted); display:block; margin-bottom:6px; }
+  input[type=number], select { font: inherit; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; width:100%; background:#fff; color:var(--ink); }
+  input[type=number]:focus, select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .grid2 { display:grid; gap:14px; grid-template-columns: 1fr 1fr; }
+  @media (max-width:520px){ .grid2{ grid-template-columns:1fr; } }
+
+  table { width:100%; border-collapse: collapse; }
+  th, td { text-align:left; padding:6px 4px; font-size:.9rem; vertical-align:middle; }
+  th { color:var(--muted); font-weight:500; font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; }
+  #rows td input, #rows td select { padding:9px 10px; }
+  .num { text-align:right; font-variant-numeric: tabular-nums; }
+
+  .errors { color:var(--err); background:#fdecea; border-radius:10px; padding:10px 14px; margin-top:16px; font-size:.9rem; }
+  .errors ul { margin:0; padding-left:18px; }
+
+  details.adv { background:#fff; border:1.5px solid var(--line); border-radius:12px; padding:14px 16px; }
+  details.adv summary { cursor:pointer; font-weight:500; }
+  details.adv .grid3 { display:grid; gap:10px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-top:10px; }
+  details.adv input { padding:9px 10px; }
+  details.adv h3 { margin-top:18px; }
+
+  .nav { border-top:1px solid var(--line); margin-top:28px; padding-top:18px; display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .btn { font: inherit; font-weight:500; border:0; border-radius:10px; padding:13px 22px; cursor:pointer; display:inline-flex; align-items:center; gap:10px; }
+  .btn.primary { background:var(--accent); color:#fff; }
+  .btn.primary:hover { background:var(--accent-dark); }
+  .btn.back { background:transparent; color:var(--muted); padding-left:4px; }
+  .btn.back:hover { color:var(--ink); }
+  .btn.ghost { background:transparent; color:var(--accent-dark); border:1.5px dashed var(--accent); padding:9px 14px; }
+  .btn.x { background:transparent; color:var(--muted); padding:4px 8px; font-size:1.2rem; }
+  .invisible { visibility:hidden; }
+  .hidden { display:none !important; }
+
+  /* Resultados */
+  .kpis { display:grid; gap:12px; grid-template-columns: 1fr 1fr; }
+  @media (max-width:520px){ .kpis{ grid-template-columns:1fr; } }
+  .kpi { background:#fff; border:1.5px solid var(--line); border-radius:12px; padding:16px; }
+  .kpi .l { font-size:.78rem; color:var(--muted); }
+  .kpi .v { font-size:1.6rem; font-weight:600; font-variant-numeric: tabular-nums; margin-top:4px; }
+  .kpi.good .v { color:var(--accent-dark); } .kpi.bad .v { color:var(--err); }
+  .eq { font-size:.92rem; margin:16px 0 4px; } .eq small { color:var(--muted); }
+  .bar-row { display:grid; grid-template-columns: 90px 1fr 120px; gap:10px; align-items:center; margin:8px 0; font-size:.88rem; }
+  .bar { height:20px; border-radius:6px; transition: width .5s ease; }
+  .bar.ice { background:var(--ice); } .bar.ev { background:var(--accent); }
+  .detail-t td, .detail-t th { border-bottom:1px solid var(--line); font-size:.84rem; }
+  .src { display:inline-flex; align-items:center; gap:8px; font-size:.8rem; color:var(--muted); background:#fff; border:1px solid var(--line); border-radius:99px; padding:5px 12px; margin-bottom:14px; }
+  .src .dot { width:8px; height:8px; border-radius:50%; background:#c9c9c9; }
+  .src.live .dot { background:var(--accent); } .src.off .dot { background:#d49a2a; }
+  /* Chave de IA */
+  .keylink { font:inherit; font-size:.8rem; margin-top:8px; background:rgba(255,255,255,.12); color:#e9f5ef; border:1px solid rgba(255,255,255,.3); border-radius:99px; padding:5px 12px; cursor:pointer; }
+  .keylink:hover { background:rgba(255,255,255,.22); }
+  #keyDlg { border:0; border-radius:14px; padding:24px; max-width:440px; width:calc(100% - 32px); box-shadow:0 20px 60px rgba(0,0,0,.3); color:var(--ink); }
+  #keyDlg::backdrop { background:rgba(10,30,25,.55); }
+  #keyDlg .kd { font-size:.86rem; color:var(--muted); margin:6px 0; }
+  #keyDlg input { width:100%; font:inherit; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; margin-top:8px; }
+  .kd-actions { display:flex; gap:8px; align-items:center; margin-top:16px; }
+  /* Conversa com IA */
+  .chat { display:flex; flex-direction:column; gap:10px; max-height:420px; min-height:220px; overflow-y:auto; padding:4px 2px; scroll-behavior:smooth; }
+  .msg { max-width:85%; padding:10px 14px; border-radius:14px; font-size:.93rem; line-height:1.45; }
+  .msg p { margin:4px 0; } .msg ul { margin:4px 0; padding-left:18px; } .msg h4 { margin:6px 0 2px; font-size:.95rem; }
+  .msg.ai { align-self:flex-start; background:#fff; border:1.5px solid var(--line); border-bottom-left-radius:4px; }
+  .msg.me { align-self:flex-end; background:var(--accent); color:#fff; border-bottom-right-radius:4px; }
+  .msg.err { align-self:center; background:#fdecea; color:var(--err); font-size:.85rem; }
+  .typing span { display:inline-block; width:7px; height:7px; margin:0 2px; border-radius:50%; background:#b9c2be; animation: blink 1.2s infinite; }
+  .typing span:nth-child(2) { animation-delay:.2s; } .typing span:nth-child(3) { animation-delay:.4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity:.3; } 40% { opacity:1; } }
+  .collected { margin-top:12px; font-size:.82rem; background:var(--accent-soft); border:1px solid #cdebdc; border-radius:10px; padding:10px 12px; }
+  .collected strong { font-weight:600; } .collected ul { margin:4px 0 0; padding-left:18px; }
+  .chat-form { display:flex; gap:8px; margin-top:12px; }
+  .chat-form input { flex:1; font:inherit; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); }
+  .chat-form input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .btn:disabled { opacity:.55; cursor:not-allowed; }
+  /* Gráfico custo vs. tempo */
+  :root { --fuel:#d0612b; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:.82rem; margin-bottom:6px; }
+  .legend .muted, .tt .muted { color:var(--muted); }
+  .sw { display:inline-block; width:14px; height:3px; border-radius:2px; vertical-align:middle; margin-right:6px; }
+  .sw.fuel { background: repeating-linear-gradient(90deg, var(--fuel) 0 5px, transparent 5px 8px); } .sw.ev { background:var(--accent); }
+  .chart-wrap { position:relative; }
+  .chart-wrap svg { width:100%; height:auto; display:block; overflow:visible; touch-action: pan-y; }
+  .chart-wrap .gl { stroke:#ecebe7; stroke-width:1; } .chart-wrap .axis { stroke:#c9c7c1; stroke-width:1; }
+  .chart-wrap .tick { font-size:11px; fill:var(--muted); font-variant-numeric: tabular-nums; }
+  .chart-wrap .ln { fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .chart-wrap .ln.fuel { stroke:var(--fuel); stroke-dasharray:6 4; } .chart-wrap .ln.ev { stroke:var(--accent); }
+  .chart-wrap .mk { stroke:#fff; stroke-width:2; } .chart-wrap .mk.fuel { fill:var(--fuel); } .chart-wrap .mk.ev { fill:var(--accent); }
+  .chart-wrap .lbl { font-size:12px; font-weight:600; fill:var(--ink); } .chart-wrap .lblv { font-size:11px; fill:var(--muted); }
+  .chart-wrap .beline { stroke:var(--ink); stroke-width:1; stroke-dasharray:2 3; opacity:.5; }
+  .chart-wrap .bedot { fill:var(--ink); stroke:#fff; stroke-width:2; }
+  .chart-wrap .hovline { stroke:var(--ink); stroke-width:1; opacity:.25; }
+  .tt { position:absolute; pointer-events:none; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.12);
+        padding:8px 10px; font-size:.8rem; line-height:1.5; white-space:nowrap; }
+  .tt b { font-variant-numeric: tabular-nums; margin-left:6px; }
+  .chart-note { font-size:.82rem; color:var(--muted); margin:4px 0 0; }
+  /* Relatório IA */
+  .ai { margin-top:20px; border:1.5px solid var(--line); border-radius:12px; background:#fff; padding:16px; }
+  .ai-head { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+  .ai-head strong { font-weight:600; }
+  .ai-status { font-size:.82rem; color:var(--muted); margin-top:8px; }
+  .ai-status.err { color:var(--err); }
+  #report { margin-top:12px; font-size:.95rem; line-height:1.55; }
+  #report h4 { font-size:1rem; margin:16px 0 6px; color:var(--accent-dark); }
+  #report ul { padding-left:20px; margin:6px 0; } #report p { margin:6px 0; }
+  .ai-actions { display:flex; gap:10px; margin-top:12px; }
+  .ai-badge { font-size:.72rem; color:var(--muted); border:1px solid var(--line); border-radius:99px; padding:2px 8px; }
+  .spin { width:14px; height:14px; border:2px solid #ffffff80; border-top-color:#fff; border-radius:50%; animation: sp .8s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  @media print {
+    body { background:#fff; } .brand, .prog-head, .prog, .nav, .foot, .ai-actions, #aiGen, details.adv summary { display:none !important; }
+    .card { box-shadow:none; border:0; margin:0; max-width:none; } details.adv { border:0; padding:0; }
+  }
+  .foot { text-align:center; color:#e3f1ea; font-size:.75rem; padding:0 16px 32px; opacity:.85; }
+</style>
+</head>
+<body>
+<div class="brand">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
+  Frota Elétrica · Simulador
+</div>
+
+<main class="card">
+  <div class="prog-head"><span id="stepLabel">Passo 1 de 5 : Detalhe</span><span id="pctLabel">20% progresso</span></div>
+  <div class="prog"><div id="progBar" style="width:20%"></div></div>
+
+  <!-- PASSO 1 — Nível de detalhe -->
+  <section class="step active" data-step="1" data-name="Detalhe">
+    <h1>Como quer descrever a sua frota?</h1>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="mode" value="quick" checked><span class="box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
+        <span class="t">Rápido</span><span class="d">N.º de veículos e km por ano</span></span></label>
+      <label class="opt"><input type="radio" name="mode" value="detail"><span class="box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        <span class="t">Detalhado</span><span class="d">Vários grupos: ligeiros, comerciais, km diferentes</span></span></label>
+      <label class="opt"><input type="radio" name="mode" value="chat"><span class="box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg>
+        <span class="t">Conversa com IA</span><span class="d">Responda a perguntas, como numa conversa</span></span></label>
+    </div>
+    <div class="tip"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V16h8v-1.3A7 7 0 0 0 12 2z"/></svg></span>
+      <span>Não precisa de dados exatos — os valores médios para Portugal já estão preenchidos.</span></div>
+  </section>
+
+  <!-- PASSO 2 — Frota -->
+  <section class="step" data-step="2" data-name="Frota">
+    <h1>Fale-nos da sua frota</h1>
+
+    <div id="quick">
+      <h3>Tipo de veículo</h3>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="qType" value="car" checked><span class="box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 17H3v-5l2-5h11l3 5h2v5h-2M7 17h8"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+          <span class="t">Ligeiro de passageiros</span></span></label>
+        <label class="opt"><input type="radio" name="qType" value="van"><span class="box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 17V6h13v11M15 9h4l3 4v4h-2M9 17h6"/><circle cx="6" cy="17" r="2"/><circle cx="18" cy="17" r="2"/></svg>
+          <span class="t">Comercial (carrinha)</span></span></label>
+      </div>
+      <h3>Combustível atual</h3>
+      <div class="opts">
+        <label class="opt sm"><input type="radio" name="qFuel" value="diesel" checked><span class="box"><span class="t">Gasóleo</span></span></label>
+        <label class="opt sm"><input type="radio" name="qFuel" value="petrol"><span class="box"><span class="t">Gasolina</span></span></label>
+      </div>
+      <h3>Utilização</h3>
+      <div class="grid2">
+        <div><label class="f" for="qCount">N.º de veículos</label><input id="qCount" type="number" min="1" step="1" value="10"></div>
+        <div><label class="f" for="qKm">Km por veículo / ano</label><input id="qKm" type="number" min="1" step="1000" value="20000"></div>
+      </div>
+    </div>
+
+    <div id="detail" class="hidden">
+      <table>
+        <thead><tr><th>Tipo</th><th>Combustível</th><th class="num">Veículos</th><th class="num">Km/ano</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div style="margin-top:12px"><button class="btn ghost" id="addRow" type="button">+ Adicionar grupo</button></div>
+    </div>
+
+    <div id="errors" class="errors hidden"></div>
+  </section>
+
+  <!-- PASSO 3 — Emissões -->
+  <section class="step" data-step="3" data-name="Emissões">
+    <h1>Como contar as emissões dos elétricos?</h1>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="co2" value="tailpipe" checked><span class="box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10z"/><path d="M2 21c0-3 1.9-5.4 5-6"/></svg>
+        <span class="t">Só no escape</span><span class="d">Elétrico = 0 g CO₂</span></span></label>
+      <label class="opt"><input type="radio" name="co2" value="grid"><span class="box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 22V12M8 22h8M5 12h14L12 2z"/></svg>
+        <span class="t">Rede nacional</span><span class="d">Inclui a produção de eletricidade em Portugal</span></span></label>
+    </div>
+    <div class="tip"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
+      <span>A rede portuguesa tem uma elevada quota de renováveis, por isso a diferença entre as duas opções é pequena.</span></div>
+  </section>
+
+  <!-- PASSO 4 — Pressupostos -->
+  <section class="step" data-step="4" data-name="Pressupostos">
+    <h1>Confirme os pressupostos</h1>
+    <div class="tip warn" style="margin:0 0 16px"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
+      <span>Valores <strong>indicativos</strong> para Portugal. Confirme taxas, limites e incentivos em vigor com o seu contabilista.</span></div>
+
+    <div id="priceSrc" class="src"><span class="dot"></span><span id="priceSrcText">A obter preços de combustível…</span></div>
+    <div class="grid2">
+      <div><label class="f">Gasóleo (€/L)</label><input type="number" data-path="prices.diesel" step="0.01"></div>
+      <div><label class="f">Eletricidade (€/kWh)</label><input type="number" data-path="prices.electricity" step="0.01"></div>
+      <div><label class="f">Incentivo Fundo Ambiental (€/elétrico)</label><input type="number" data-path="tax.incentive" step="500"></div>
+      <div><label class="f">Horizonte da análise (anos)</label><input type="number" data-path="years" step="1" min="1"></div>
+    </div>
+
+    <details class="adv" style="margin-top:16px">
+      <summary>Mais pressupostos (preços, consumos, impostos, CO₂)</summary>
+      <h3>Gasolina</h3>
+      <div class="grid3"><div><label class="f">Gasolina (€/L)</label><input type="number" data-path="prices.petrol" step="0.01"></div></div>
+      <h3>Ligeiro de passageiros</h3>
+      <div class="grid3">
+        <div><label class="f">Preço combustão (€ c/ IVA)</label><input type="number" data-path="vehicles.car.icePrice" step="500"></div>
+        <div><label class="f">Preço elétrico (€ c/ IVA)</label><input type="number" data-path="vehicles.car.evPrice" step="500"></div>
+        <div><label class="f">Consumo combustão (L/100 km)</label><input type="number" data-path="vehicles.car.iceCons" step="0.1"></div>
+        <div><label class="f">Consumo elétrico (kWh/100 km)</label><input type="number" data-path="vehicles.car.evCons" step="0.5"></div>
+        <div><label class="f">Manutenção combustão (€/km)</label><input type="number" data-path="vehicles.car.iceMaint" step="0.005"></div>
+        <div><label class="f">Manutenção elétrico (€/km)</label><input type="number" data-path="vehicles.car.evMaint" step="0.005"></div>
+      </div>
+      <h3>Comercial (carrinha)</h3>
+      <div class="grid3">
+        <div><label class="f">Preço combustão (€ c/ IVA)</label><input type="number" data-path="vehicles.van.icePrice" step="500"></div>
+        <div><label class="f">Preço elétrico (€ c/ IVA)</label><input type="number" data-path="vehicles.van.evPrice" step="500"></div>
+        <div><label class="f">Consumo combustão (L/100 km)</label><input type="number" data-path="vehicles.van.iceCons" step="0.1"></div>
+        <div><label class="f">Consumo elétrico (kWh/100 km)</label><input type="number" data-path="vehicles.van.evCons" step="0.5"></div>
+        <div><label class="f">Manutenção combustão (€/km)</label><input type="number" data-path="vehicles.van.iceMaint" step="0.005"></div>
+        <div><label class="f">Manutenção elétrico (€/km)</label><input type="number" data-path="vehicles.van.evMaint" step="0.005"></div>
+      </div>
+      <h3>Impostos</h3>
+      <div class="grid3">
+        <div><label class="f">Trib. Autónoma &lt; 27 500 € (%)</label><input type="number" data-path="tax.taBrackets.0.rate" data-scale="100" step="0.5"></div>
+        <div><label class="f">Trib. Autónoma 27 500–35 000 € (%)</label><input type="number" data-path="tax.taBrackets.1.rate" data-scale="100" step="0.5"></div>
+        <div><label class="f">Trib. Autónoma ≥ 35 000 € (%)</label><input type="number" data-path="tax.taBrackets.2.rate" data-scale="100" step="0.5"></div>
+        <div><label class="f">IVA (%)</label><input type="number" data-path="tax.vatRate" data-scale="100" step="1"></div>
+        <div><label class="f">Limite dedução IVA elétricos (€ s/ IVA)</label><input type="number" data-path="tax.evVatCap" step="500"></div>
+        <div><label class="f">IUC combustão (€/veículo/ano)</label><input type="number" data-path="tax.iucIce" step="10"></div>
+      </div>
+      <h3>Fatores de CO₂</h3>
+      <div class="grid3">
+        <div><label class="f">Gasóleo (kg/L)</label><input type="number" data-path="co2.diesel" step="0.01"></div>
+        <div><label class="f">Gasolina (kg/L)</label><input type="number" data-path="co2.petrol" step="0.01"></div>
+        <div><label class="f">Rede nacional (kg/kWh)</label><input type="number" data-path="co2.grid" step="0.01"></div>
+        <div><label class="f">Árvore (kg/ano)</label><input type="number" data-path="co2.tree" step="1"></div>
+        <div><label class="f">Voo Lisboa–Porto (kg/pass.)</label><input type="number" data-path="co2.flight" step="1"></div>
+      </div>
+      <div style="margin-top:14px"><button class="btn ghost" id="reset" type="button">Repor valores por defeito</button></div>
+    </details>
+  </section>
+
+  <!-- CONVERSA COM IA (substitui os passos 2–4 no modo conversa) -->
+  <section class="step" data-step="chat" data-name="Conversa">
+    <h1>Conversa com o assistente</h1>
+    <div class="chat" id="chatLog" aria-live="polite"></div>
+    <div class="collected" id="collected"></div>
+    <form class="chat-form" id="chatForm" autocomplete="off">
+      <input id="chatInput" type="text" placeholder="Escreva a sua resposta…" maxlength="500" aria-label="Mensagem">
+      <button class="btn primary" id="chatSend" type="submit">Enviar</button>
+    </form>
+  </section>
+
+  <!-- PASSO 5 — Resultados -->
+  <section class="step" data-step="5" data-name="Resultados" id="results" aria-live="polite">
+    <h1 id="resTitle">A sua poupança</h1>
+    <div id="out"></div>
+
+    <div class="ai">
+      <div class="ai-head">
+        <div><strong>Relatório final</strong> <span class="ai-badge">gerado por IA</span></div>
+        <button class="btn primary" id="aiGen" type="button">✨ Gerar relatório</button>
+      </div>
+      <div id="aiStatus" class="ai-status">Um resumo escrito dos resultados acima, pronto a partilhar com sócios ou o contabilista.</div>
+      <div id="report"></div>
+      <div class="ai-actions hidden" id="aiActions">
+        <button class="btn ghost" id="aiCopy" type="button">Copiar texto</button>
+        <button class="btn ghost" id="aiPrint" type="button">Imprimir / PDF</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="nav">
+    <button class="btn back invisible" id="back" type="button">← Anterior</button>
+    <button class="btn primary" id="next" type="button">Seguinte <span aria-hidden="true">→</span></button>
+  </div>
+</main>
+
+<p class="foot">Protótipo — estimativa simplificada. Não inclui valor residual, carregadores, financiamento nem depreciação fiscal.
+  <br><button class="keylink" id="keyBtn" type="button">🔑 Chave de IA</button></p>
+
+<dialog id="keyDlg">
+  <form method="dialog" id="keyForm">
+    <h3 style="margin-top:0">Chave da API (Google AI Studio)</h3>
+    <p class="kd">Necessária apenas para a <strong>conversa com IA</strong> e o <strong>relatório final</strong>. O simulador funciona sem ela.</p>
+    <p class="kd">A chave fica guardada <strong>só neste navegador</strong> e é enviada apenas à Google. Nunca é publicada no site.</p>
+    <input id="keyInput" type="password" placeholder="Cole aqui a sua chave" autocomplete="off" spellcheck="false">
+    <div id="keyMsg" class="kd" style="margin-top:8px"></div>
+    <div class="kd-actions">
+      <button class="btn ghost" id="keyClear" type="button">Remover</button>
+      <span style="flex:1"></span>
+      <button class="btn back" value="cancel" type="submit">Fechar</button>
+      <button class="btn primary" id="keySave" type="button">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="config.js" onerror="window.APP_CONFIG = null"></script>
+<script src="calc.js"></script>
+<script>
+  const C = window.FleetCalc;
+  const $ = (id) => document.getElementById(id);
+  const val = (name) => document.querySelector(`input[name=${name}]:checked`).value;
+  let step = '1';
+
+  // ---------- Modo detalhado: linhas ----------
+  function addRow(g = { type: 'car', fuel: 'diesel', count: 5, kmYear: 20000 }) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><select data-f="type"><option value="car">Ligeiro</option><option value="van">Comercial</option></select></td>
+      <td><select data-f="fuel"><option value="diesel">Gasóleo</option><option value="petrol">Gasolina</option></select></td>
+      <td class="num"><input data-f="count" type="number" min="1" step="1" value="${g.count}"></td>
+      <td class="num"><input data-f="kmYear" type="number" min="1" step="1000" value="${g.kmYear}"></td>
+      <td><button class="btn x" type="button" title="Remover">×</button></td>`;
+    tr.querySelector('[data-f=type]').value = g.type;
+    tr.querySelector('[data-f=fuel]').value = g.fuel;
+    tr.querySelector('.btn.x').onclick = () => tr.remove();
+    $('rows').appendChild(tr);
+  }
+  addRow({ type: 'car', fuel: 'diesel', count: 5, kmYear: 20000 });
+  addRow({ type: 'van', fuel: 'diesel', count: 3, kmYear: 30000 });
+  $('addRow').onclick = () => addRow();
+
+  const toNum = (v) => (v === '' ? NaN : Number(v));
+  function readFleet() {
+    if (val('mode') === 'quick') {
+      return [{ type: val('qType'), fuel: val('qFuel'), count: toNum($('qCount').value), kmYear: toNum($('qKm').value) }];
+    }
+    return [...$('rows').children].map((tr) => ({
+      type: tr.querySelector('[data-f=type]').value,
+      fuel: tr.querySelector('[data-f=fuel]').value,
+      count: toNum(tr.querySelector('[data-f=count]').value),
+      kmYear: toNum(tr.querySelector('[data-f=kmYear]').value),
+    }));
+  }
+  document.querySelectorAll('input[name=mode]').forEach((r) => r.addEventListener('change', () => {
+    const q = val('mode') === 'quick';
+    $('quick').classList.toggle('hidden', !q);
+    $('detail').classList.toggle('hidden', val('mode') !== 'detail');
+    if (step === '1') show('1');                              // atualiza "Passo 1 de 5" ↔ "Passo 1 de 3"
+  }));
+
+  // ---------- Pressupostos ----------
+  const getPath = (o, p) => p.split('.').reduce((a, k) => a[k], o);
+  const setPath = (o, p, v) => { const ks = p.split('.'); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; };
+  function fillAssumptions(A) {
+    document.querySelectorAll('[data-path]').forEach((el) => {
+      el.value = +(getPath(A, el.dataset.path) * Number(el.dataset.scale || 1)).toFixed(4);
+    });
+  }
+  function readAssumptions() {
+    const A = structuredClone(C.DEFAULTS);
+    document.querySelectorAll('[data-path]').forEach((el) => {
+      const v = Number(el.value);
+      if (el.value !== '' && Number.isFinite(v)) setPath(A, el.dataset.path, v / Number(el.dataset.scale || 1));
+    });
+    return A;
+  }
+  fillAssumptions(C.DEFAULTS);
+
+  // ---------- Preços de combustível em tempo real (API Aberta) ----------
+  let live = null;                       // { diesel, petrol, date, stations } ou null
+  let priceNote = 'valores por defeito';
+  const priceInput = (k) => document.querySelector(`[data-path="prices.${k}"]`);
+  ['diesel', 'petrol'].forEach((k) => priceInput(k).addEventListener('input', (e) => { e.target.dataset.touched = '1'; }));
+  function applyLive(force) {
+    if (!live) return;
+    ['diesel', 'petrol'].forEach((k) => {
+      const el = priceInput(k);
+      if (force || !el.dataset.touched) { el.value = live[k]; delete el.dataset.touched; } // não apaga edições do utilizador
+    });
+  }
+  function setSrc(cls, text) { $('priceSrc').className = 'src ' + cls; $('priceSrcText').textContent = text; }
+  async function loadPrices() {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    try {
+      const res = await fetch(C.FUEL_API_URL, { signal: ctrl.signal });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const p = C.parseFuelPrices(await res.json());
+      if (!p) throw new Error('formato inesperado');
+      live = p; applyLive(false);
+      const d = p.date ? new Date(p.date + 'T00:00:00').toLocaleDateString('pt-PT') : 'hoje';
+      priceNote = `média nacional de ${d}, API Aberta`;
+      setSrc('live', `Combustível: média nacional de ${d}${p.stations ? ` (${N(p.stations)} postos)` : ''} · API Aberta`);
+    } catch (err) {
+      console.warn('Preços em tempo real indisponíveis:', err.message);
+      setSrc('off', 'Sem ligação à API — a usar valores por defeito');
+    } finally { clearTimeout(timer); }
+  }
+
+  $('reset').onclick = () => { fillAssumptions(C.DEFAULTS); applyLive(true); };
+
+  // ---------- Navegação entre passos ----------
+  // Cada modo tem o seu percurso: formulário (5 passos) ou conversa com IA (3 passos).
+  const FLOWS = { quick: ['1', '2', '3', '4', '5'], detail: ['1', '2', '3', '4', '5'], chat: ['1', 'chat', '5'] };
+  const flow = () => FLOWS[val('mode')];
+  function show(id) {
+    step = id;
+    const f = flow(), i = f.indexOf(id), total = f.length;
+    document.querySelectorAll('.step').forEach((s) => s.classList.toggle('active', s.dataset.step === id));
+    const name = document.querySelector(`.step[data-step="${id}"]`).dataset.name;
+    const pct = Math.round(((i + 1) / total) * 100);
+    $('stepLabel').textContent = `Passo ${i + 1} de ${total} : ${name}`;
+    $('pctLabel').textContent = `${pct}% progresso`;
+    $('progBar').style.width = pct + '%';
+    $('back').classList.toggle('invisible', i === 0);
+    $('back').textContent = id === '5' ? '← Ajustar' : '← Anterior';
+    $('next').classList.toggle('hidden', id === 'chat');    // na conversa, é a IA que decide quando avançar
+    $('next').innerHTML = id === '4' ? 'Simular <span aria-hidden="true">→</span>'
+                        : id === '5' ? 'Nova simulação <span aria-hidden="true">↺</span>'
+                        : 'Seguinte <span aria-hidden="true">→</span>';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (id === 'chat') setTimeout(() => $('chatInput').focus(), 50);
+  }
+
+  function checkFleet() {
+    const errs = C.validateFleet(readFleet());
+    $('errors').classList.toggle('hidden', errs.length === 0);
+    $('errors').innerHTML = errs.length ? '<ul>' + errs.map((e) => `<li>${e}</li>`).join('') + '</ul>' : '';
+    return errs.length === 0;
+  }
+
+  $('next').onclick = () => {
+    if (step === '2' && !checkFleet()) return;          // não avança com dados inválidos
+    if (step === '4') { run(); return show('5'); }
+    if (step === '5') { resetChat(); return show('1'); }
+    const f = flow(), nxt = f[f.indexOf(step) + 1];
+    if (nxt === 'chat') startChat();
+    show(nxt);
+  };
+  $('back').onclick = () => { const f = flow(), i = f.indexOf(step); if (i > 0) show(f[i - 1]); };
+
+  // ---------- Resultados ----------
+  const E = C.formatEur, N = C.formatNum;
+  const paybackText = (p) => (p === 0 ? 'Imediato' : p === null ? 'Não recupera' : `${N(p, 1)} anos`);
+  loadPrices();
+
+  // ---------- Relatório por IA ----------
+  let lastSim = null;                 // { r, fleet, A, co2Mode } da última simulação
+  let lastPrompt = null, lastReport = null, lastCallAt = 0;
+  const MIN_GAP_MS = 5000;            // 15 pedidos/min no plano gratuito → no máximo 1 a cada 5 s
+  // Chave: 1) config.js local (nunca publicado) ou 2) colada pelo utilizador, guardada só neste navegador.
+  const KEY_STORE = 'icetoev_gemini_key';
+  const cfg = Object.assign({ geminiModel: 'gemini-3.1-flash-lite', geminiFallbackModel: 'gemini-3.5-flash-lite' }, window.APP_CONFIG || {});
+  const fileKey = cfg.geminiApiKey && !/COLE_AQUI/.test(cfg.geminiApiKey) ? cfg.geminiApiKey : '';
+  const storedKey = () => { try { return localStorage.getItem(KEY_STORE) || ''; } catch { return ''; } };
+  const apiKey = () => fileKey || storedKey();
+  const hasKey = () => !!apiKey();
+  const NO_KEY_MSG = 'Funcionalidade de IA desativada: falta a chave da API. Use o botão "🔑 Chave de IA" no fundo da página.';
+
+  function aiStatus(text, isErr) { $('aiStatus').textContent = text; $('aiStatus').className = 'ai-status' + (isErr ? ' err' : ''); }
+  function resetReport() {
+    $('report').innerHTML = ''; $('aiActions').classList.add('hidden');
+    aiStatus(hasKey() ? 'Um resumo escrito dos resultados acima, pronto a partilhar com sócios ou o contabilista.'
+                      : NO_KEY_MSG, !hasKey());
+    $('aiGen').disabled = !hasKey();
+  }
+  function showReport(text) {
+    $('report').innerHTML = C.mdToHtml(text);
+    $('aiActions').classList.remove('hidden');
+    $('aiGen').innerHTML = '↻ Gerar de novo';
+  }
+
+  // Caixa "Chave de IA"
+  function refreshAiState() {
+    if (step === '5' && !$('report').innerHTML) resetReport();
+    if (step === 'chat') { renderChat(); document.querySelectorAll('#chatLog .msg.err').forEach((e) => e.remove()); }
+  }
+  $('keyBtn').onclick = () => {
+    $('keyInput').value = ''; $('keyInput').disabled = !!fileKey; $('keySave').disabled = !!fileKey; $('keyClear').disabled = !!fileKey || !storedKey();
+    $('keyMsg').textContent = fileKey ? 'A usar a chave do ficheiro config.js (versão local).'
+                            : storedKey() ? '✓ Chave guardada neste navegador.' : 'Nenhuma chave configurada.';
+    $('keyDlg').showModal();
+  };
+  $('keySave').onclick = () => {
+    const k = $('keyInput').value.trim();
+    if (k.length < 20) { $('keyMsg').textContent = 'A chave parece incompleta.'; return; }
+    try { localStorage.setItem(KEY_STORE, k); } catch { $('keyMsg').textContent = 'Este navegador não permite guardar dados.'; return; }
+    $('keyDlg').close(); refreshAiState();
+  };
+  $('keyClear').onclick = () => {
+    try { localStorage.removeItem(KEY_STORE); } catch {}
+    $('keyMsg').textContent = 'Chave removida deste navegador.'; $('keyClear').disabled = true; refreshAiState();
+  };
+
+  // Espera (em vez de recusar) até haver "vaga" no limite de pedidos por minuto.
+  async function waitForSlot(onWait) {
+    const wait = MIN_GAP_MS - (Date.now() - lastCallAt);
+    if (wait > 0) { if (onWait) onWait(wait); await new Promise((r) => setTimeout(r, wait)); }
+    lastCallAt = Date.now();
+  }
+
+  // Chamada ao Gemini com modelo alternativo em caso de sobrecarga. Devolve { json, model, skipped }.
+  async function callGemini(body, { onSwitch, timeoutMs = 30000 } = {}) {
+    const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const models = C.modelsToTry(cfg), skipped = [];
+      for (const model of models) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+        const res = await fetch(url, { method: 'POST', signal: ctrl.signal,
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey() },
+          body: JSON.stringify(body) });
+        const json = await res.json().catch(() => null);
+        if (C.isRetryableStatus(res.status)) {                    // sobrecarregado → tenta o modelo seguinte
+          console.warn(`${model} indisponível (HTTP ${res.status}) — a tentar o próximo modelo.`);
+          skipped.push(model);
+          const nxt = models[models.indexOf(model) + 1];
+          if (nxt && onSwitch) onSwitch(model, nxt);
+          continue;
+        }
+        if (res.status === 429) throw new Error('Limite de pedidos atingido. Tente de novo dentro de 1 minuto.');
+        if (!res.ok) throw new Error((json && json.error && json.error.message) || `Erro HTTP ${res.status}`);
+        return { json, model, skipped };
+      }
+      throw new Error('Os servidores da Google estão sobrecarregados. Tente de novo dentro de alguns minutos.');
+    } catch (err) {
+      if (err.name === 'AbortError') throw new Error('A IA demorou demasiado. Tente de novo.');
+      throw err;
+    } finally { clearTimeout(timer); }
+  }
+
+  async function generateReport() {
+    if (!hasKey() || !lastSim) return;
+    const { r, fleet, A, co2Mode } = lastSim;
+    const prompt = C.buildReportPrompt(r, fleet, A, co2Mode, priceNote);
+    if (prompt === lastPrompt && lastReport && $('report').innerHTML === '') { showReport(lastReport); return; } // mesmos dados → sem novo pedido
+
+    $('aiGen').disabled = true; $('aiGen').innerHTML = '<span class="spin"></span> A escrever…';
+    await waitForSlot((ms) => aiStatus(`A aguardar ${Math.ceil(ms / 1000)} s (limite de pedidos da API)…`));
+    aiStatus('A preparar o relatório… (cerca de 5–10 s)');
+    try {
+      const { json, model: usedModel, skipped } = await callGemini(C.geminiRequestBody(prompt),
+        { onSwitch: (a, b) => aiStatus(`${a} está sobrecarregado — a tentar ${b}…`) });
+      const text = C.parseGeminiText(json);
+      if (!text) throw new Error('A IA não devolveu texto. Tente de novo.');
+      lastPrompt = prompt; lastReport = text;
+      showReport(text);
+      aiStatus(`Gerado por ${usedModel}${skipped.length ? ` (${skipped.join(', ')} estava sobrecarregado)` : ''} a partir dos números acima. Reveja antes de partilhar.`);
+    } catch (err) {
+      aiStatus(`Não foi possível gerar o relatório: ${err.message}`, true);
+      $('aiGen').innerHTML = '✨ Gerar relatório';
+    } finally { $('aiGen').disabled = false; }
+  }
+  $('aiGen').onclick = generateReport;
+  $('aiCopy').onclick = async () => {
+    try { await navigator.clipboard.writeText(lastReport || ''); aiStatus('Texto copiado.'); }
+    catch { aiStatus('Não foi possível copiar — selecione o texto manualmente.', true); }
+  };
+  $('aiPrint').onclick = () => window.print();
+
+  // ---------- Conversa com IA ----------
+  // history: mensagens enviadas ao Gemini. Nas do modelo, `text` é o JSON completo e `reply` o que se mostra.
+  const chat = { history: [], latest: null, busy: false, finished: false };
+  const FUEL_PT = { diesel: 'gasóleo', petrol: 'gasolina' }, TYPE_PT = { car: 'ligeiros', van: 'comerciais' };
+
+  function resetChat() { chat.history = []; chat.latest = null; chat.busy = false; chat.finished = false; }
+  function startChat() {
+    if (chat.history.length) {                                 // ao voltar atrás, a conversa continua
+      chat.finished = false; renderChat();
+      $('chatInput').placeholder = 'O que gostaria de alterar? (ex.: "afinal são 12 carrinhas")';
+      return;
+    }
+    $('chatInput').placeholder = 'Escreva a sua resposta…';
+    chat.history = [
+      { role: 'user', text: 'Olá, quero simular a eletrificação da minha frota.', hidden: true }, // o Gemini espera começar pelo utilizador
+      { role: 'model', text: JSON.stringify({ reply: C.CHAT_GREETING, done: false, fleet: [] }), reply: C.CHAT_GREETING },
+    ];
+    renderChat();
+    if (!hasKey()) chatError(NO_KEY_MSG + ' Ou use o modo Rápido ou Detalhado.');
+  }
+
+  function renderChat() {
+    const log = $('chatLog');
+    log.innerHTML = chat.history.filter((m) => !m.hidden).map((m) => m.role === 'user'
+      ? `<div class="msg me">${C.mdToHtml(m.text)}</div>`
+      : `<div class="msg ai">${C.mdToHtml(m.reply)}</div>`).join('')
+      + (chat.busy ? '<div class="msg ai typing" aria-label="A escrever"><span></span><span></span><span></span></div>' : '');
+    log.scrollTop = log.scrollHeight;
+
+    const t = chat.latest;
+    const items = [];
+    if (t && t.fleet.length) t.fleet.forEach((g) => items.push(`${N(g.count)} ${TYPE_PT[g.type]} a ${FUEL_PT[g.fuel]} · ${N(g.kmYear)} km/ano`));
+    if (t && t.co2Mode) items.push(`Emissões: ${t.co2Mode === 'grid' ? 'incluindo a rede nacional' : 'só no escape'}`);
+    if (t && t.overrides.electricityPrice != null) items.push(`Eletricidade: ${N(t.overrides.electricityPrice, 2)} €/kWh`);
+    if (t && t.overrides.incentive != null) items.push(`Incentivo: ${E(t.overrides.incentive)} por elétrico`);
+    if (t && t.overrides.years != null) items.push(`Horizonte: ${t.overrides.years} anos`);
+    $('collected').innerHTML = items.length
+      ? `<strong>Dados recolhidos até agora</strong><ul>${items.map((i) => `<li>${i}</li>`).join('')}</ul>`
+      : '<strong>Dados recolhidos até agora:</strong> ainda nenhum.';
+
+    const off = chat.busy || chat.finished || !hasKey();
+    $('chatInput').disabled = off; $('chatSend').disabled = off;
+  }
+  function chatError(text) {
+    $('chatLog').insertAdjacentHTML('beforeend', `<div class="msg err">${C.mdToHtml(text)}</div>`);
+    $('chatLog').scrollTop = $('chatLog').scrollHeight;
+  }
+
+  async function sendChat(text) {
+    if (chat.busy || chat.finished || !hasKey() || !text) return;
+    chat.history.push({ role: 'user', text });
+    chat.busy = true; renderChat();
+    try {
+      await waitForSlot();
+      const { json } = await callGemini(C.chatRequestBody(chat.history, readAssumptions()), { timeoutMs: 20000 });
+      const turn = C.parseChatTurn(json);
+      if (!turn) throw new Error('A resposta da IA não veio no formato esperado. Envie a mensagem de novo.');
+      chat.history.push({ role: 'model', text: C.parseGeminiText(json), reply: turn.reply });
+      chat.latest = turn;
+      chat.busy = false; renderChat();
+      if (turn.ready) finishChat(turn);
+    } catch (err) {
+      chat.history.pop();                                       // retira a mensagem que falhou…
+      chat.busy = false; renderChat();
+      $('chatInput').value = text;                              // …e devolve-a à caixa para reenviar
+      chatError(`Não foi possível obter resposta: ${err.message}`);
+    }
+  }
+
+  function finishChat(turn) {
+    chat.finished = true; renderChat();
+    const A = C.applyChatOverrides(readAssumptions(), turn.overrides);
+    const co2Mode = turn.co2Mode || 'tailpipe';
+    document.querySelector(`input[name=co2][value=${co2Mode}]`).checked = true;
+    setTimeout(() => {                                          // um instante para ler a última mensagem
+      run({ fleet: turn.fleet, A, co2Mode });
+      show('5');
+      generateReport();                                         // resultados + relatório final automaticamente
+    }, 1500);
+  }
+
+  $('chatForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = $('chatInput').value.trim();
+    $('chatInput').value = '';
+    sendChat(text);
+  });
+
+  // Sem argumentos lê o formulário; a conversa com IA passa { fleet, A, co2Mode } diretamente.
+  function run(input) {
+    const co2Mode = (input && input.co2Mode) || val('co2');
+    const fleet = (input && input.fleet) || readFleet();
+    const A = (input && input.A) || readAssumptions();
+    const r = C.simulate(fleet, A, co2Mode);
+    lastSim = r.ok ? { r, fleet, A, co2Mode } : null;
+    resetReport(); $('aiGen').innerHTML = '✨ Gerar relatório';
+    if (!r.ok) { $('out').innerHTML = `<div class="errors"><ul>${r.errors.map((e) => `<li>${e}</li>`).join('')}</ul></div>`; return; }
+    const iceTax = r.iceIuc + r.iceTa;
+    $('resTitle').textContent = r.tcoSavings >= 0 ? `Poupa ${E(r.tcoSavings)} em ${r.years} anos` : `Custo extra de ${E(-r.tcoSavings)} em ${r.years} anos`;
+    $('out').innerHTML = `
+      <div class="kpis">
+        <div class="kpi ${r.annualSavings >= 0 ? 'good' : 'bad'}"><div class="l">Poupança anual (utilização)</div><div class="v" data-k="annualSavings">${E(r.annualSavings)}</div></div>
+        <div class="kpi ${r.tcoSavings >= 0 ? 'good' : 'bad'}"><div class="l">Poupança total em ${r.years} anos</div><div class="v" data-k="tcoSavings">${E(r.tcoSavings)}</div></div>
+        <div class="kpi"><div class="l">Recuperação do investimento extra</div><div class="v" data-k="payback">${paybackText(r.paybackYears)}</div></div>
+        <div class="kpi good"><div class="l">CO₂ evitado por ano</div><div class="v" data-k="co2">${N(r.co2AvoidedKg / 1000, 2)} t</div></div>
+      </div>
+      <div class="tip"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10z"/></svg></span>
+        <span>Equivale a <strong>${N(r.trees)}</strong> árvores a absorver CO₂ durante um ano, ou <strong>${N(r.flights)}</strong> voos Lisboa–Porto evitados.
+        <br><small>Emissões dos elétricos: ${co2Mode === 'grid' ? 'incluindo a rede nacional' : 'só no escape (zero)'}.
+        Combustível: ${priceNote}.</small></span></div>
+
+      <h3>Custo acumulado ao longo do tempo — ${N(r.vehicles)} veículos</h3>
+      <div class="legend">
+        <span><i class="sw fuel"></i>Combustão</span><span><i class="sw ev"></i>Elétrico</span>
+        <span class="muted">Ano 0 = compra (líquida de IVA e incentivos)</span>
+      </div>
+      <div class="chart-wrap" id="chart"></div>
+
+      <details class="adv" style="margin-top:16px"><summary>Ver detalhe do cálculo</summary>
+      <table class="detail-t" style="margin-top:10px">
+        <thead><tr><th></th><th class="num">Combustão</th><th class="num">Elétrico</th><th class="num">Diferença</th></tr></thead>
+        <tbody>
+          <tr><td>Compra (líquida de IVA e incentivos)</td><td class="num">${E(r.icePurchase)}</td><td class="num">${E(r.evPurchase)}</td><td class="num">${E(r.icePurchase - r.evPurchase)}</td></tr>
+          <tr><td>Energia / ano</td><td class="num" data-k="iceEnergy">${E(r.iceEnergy)}</td><td class="num" data-k="evEnergy">${E(r.evEnergy)}</td><td class="num">${E(r.iceEnergy - r.evEnergy)}</td></tr>
+          <tr><td>Manutenção / ano</td><td class="num">${E(r.iceMaint)}</td><td class="num">${E(r.evMaint)}</td><td class="num">${E(r.iceMaint - r.evMaint)}</td></tr>
+          <tr><td>Impostos / ano (IUC + TA)</td><td class="num">${E(iceTax)}</td><td class="num">${E(0)}</td><td class="num">${E(iceTax)}</td></tr>
+          <tr><td>CO₂ / ano</td><td class="num">${N(r.iceCo2 / 1000, 2)} t</td><td class="num">${N(r.evCo2 / 1000, 2)} t</td><td class="num">${N(r.co2AvoidedKg / 1000, 2)} t</td></tr>
+        </tbody>
+      </table></details>`;
+    drawChart(r);
+  }
+
+  // ---------- Gráfico: custo acumulado vs. tempo (SVG, sem bibliotecas) ----------
+  function niceStep(raw) {
+    const p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+    return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+  }
+  const kEur = (v) => (Math.abs(v) >= 1e6 ? `${N(v / 1e6, 1)} M€` : `${N(v / 1000)} k€`);
+
+  function drawChart(r) {
+    const pts = C.costSeries(r);
+    const W = 600, H = 270, m = { l: 58, r: 104, t: 22, b: 34 };
+    const pw = W - m.l - m.r, ph = H - m.t - m.b;
+    const maxV = Math.max(...pts.map((p) => Math.max(p.ice, p.ev)), 1);
+    const step = niceStep(maxV / 4), top = Math.ceil(maxV / step) * step;
+    const x = (yr) => m.l + (yr / r.years) * pw;
+    const y = (v) => m.t + ph - (Math.max(0, v) / top) * ph;
+    const path = (k) => pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.year).toFixed(1)},${y(p[k]).toFixed(1)}`).join('');
+
+    let grid = '';
+    for (let v = 0; v <= top + 1e-6; v += step)
+      grid += `<line x1="${m.l}" x2="${m.l + pw}" y1="${y(v)}" y2="${y(v)}" class="${v === 0 ? 'axis' : 'gl'}"/>
+               <text x="${m.l - 8}" y="${y(v) + 4}" class="tick" text-anchor="end">${kEur(v)}</text>`;
+    let xt = '';
+    pts.forEach((p) => { xt += `<text x="${x(p.year)}" y="${H - 12}" class="tick" text-anchor="middle">${p.year === 0 ? 'Compra' : 'Ano ' + p.year}</text>`; });
+
+    // Etiquetas diretas no fim das linhas (afastadas se ficarem sobrepostas)
+    const last = pts[pts.length - 1];
+    let yI = y(last.ice), yE = y(last.ev);
+    if (Math.abs(yI - yE) < 30) { const mid = (yI + yE) / 2, s = yI <= yE ? -1 : 1; yI = mid + 15 * s; yE = mid - 15 * s; }
+    const endLbl = (yy, name, v) => `<text x="${m.l + pw + 10}" y="${yy - 2}" class="lbl">${name}</text>
+                                     <text x="${m.l + pw + 10}" y="${yy + 12}" class="lblv">${kEur(v)}</text>`;
+
+    // Ponto de equilíbrio (onde as linhas se cruzam), se acontecer dentro do horizonte
+    let be = '';
+    const pb = r.paybackYears;
+    if (pb && pb > 0 && pb <= r.years) {
+      const bx = x(pb), by = y(r.icePurchase + r.iceAnnual * pb);
+      be = `<line x1="${bx}" x2="${bx}" y1="${by}" y2="${m.t + ph}" class="beline"/>
+            <circle cx="${bx}" cy="${by}" r="5" class="bedot"/>
+            <text x="${bx}" y="${by - 12}" class="lbl" text-anchor="middle">Equilíbrio: ${N(pb, 1)} anos</text>`;
+    }
+
+    $('chart').innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Custo acumulado da frota a combustão e elétrica ao longo de ${r.years} anos">
+        ${grid}${xt}
+        <path d="${path('ice')}" class="ln fuel"/>
+        <path d="${path('ev')}" class="ln ev"/>
+        ${pts.map((p) => `<circle cx="${x(p.year)}" cy="${y(p.ice)}" r="4" class="mk fuel"/><circle cx="${x(p.year)}" cy="${y(p.ev)}" r="4" class="mk ev"/>`).join('')}
+        ${be}
+        ${endLbl(yI, 'Combustão', last.ice)}${endLbl(yE, 'Elétrico', last.ev)}
+        <g id="hov" class="hidden"><line id="hovLine" y1="${m.t}" y2="${m.t + ph}" class="hovline"/>
+          <circle id="hovI" r="5" class="mk fuel ring"/><circle id="hovE" r="5" class="mk ev ring"/></g>
+        <rect x="${m.l}" y="${m.t}" width="${pw}" height="${ph}" fill="transparent" id="hit"/>
+      </svg>
+      <div class="tt hidden" id="tt"></div>
+      ${pb === 0 ? '<p class="chart-note">O elétrico é mais barato desde a compra — a linha verde fica sempre abaixo.</p>' : ''}`;
+
+    // Camada de hover: linha vertical + tooltip no ano mais próximo
+    const svg = $('chart').querySelector('svg'), tt = $('tt');
+    function move(ev) {
+      const b = svg.getBoundingClientRect(), sx = W / b.width;
+      const px = (ev.clientX - b.left) * sx;
+      const yr = Math.max(0, Math.min(r.years, Math.round(((px - m.l) / pw) * r.years)));
+      const p = pts[yr];
+      $('hov').classList.remove('hidden');
+      $('hovLine').setAttribute('x1', x(yr)); $('hovLine').setAttribute('x2', x(yr));
+      $('hovI').setAttribute('cx', x(yr)); $('hovI').setAttribute('cy', y(p.ice));
+      $('hovE').setAttribute('cx', x(yr)); $('hovE').setAttribute('cy', y(p.ev));
+      const d = p.ice - p.ev;
+      tt.innerHTML = `<strong>${yr === 0 ? 'Compra' : 'Ano ' + yr}</strong>
+        <div><i class="sw fuel"></i>Combustão <b>${E(p.ice)}</b></div>
+        <div><i class="sw ev"></i>Elétrico <b>${E(p.ev)}</b></div>
+        <div class="muted">${d >= 0 ? 'Poupança acumulada' : 'Custo extra acumulado'}: ${E(Math.abs(d))}</div>`;
+      tt.classList.remove('hidden');
+      const left = (x(yr) / sx), wrapW = b.width;
+      tt.style.left = Math.min(Math.max(left - tt.offsetWidth / 2, 0), wrapW - tt.offsetWidth) + 'px';
+      tt.style.top = (Math.min(y(p.ice), y(p.ev)) / sx - tt.offsetHeight - 12) + 'px';
+    }
+    const hide = () => { $('hov').classList.add('hidden'); tt.classList.add('hidden'); };
+    $('hit').addEventListener('pointermove', move);
+    $('hit').addEventListener('pointerdown', move);
+    $('hit').addEventListener('pointerleave', hide);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+# Contém a chave da API — NUNCA publicar
+config.js
+
+# Definições locais do editor / Claude
+.claude/
