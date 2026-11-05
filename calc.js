@@ -258,6 +258,51 @@ REGRAS:
     return B;
   }
 
+  // ---------- Voz: preparar texto para ser lido em voz alta ----------
+  // Markdown → texto simples; unidades e números em forma "falável" (pt-PT).
+  function speechText(md) {
+    return String(md || '')
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/^#{1,6}\s+(.*)$/gm, '$1.')                    // títulos → frase
+      .replace(/^\s*[-*]\s+(.*?)[.;:]?\s*$/gm, '$1.')          // itens de lista → frases
+      .replace(/\*\*(.+?)\*\*|\*(.+?)\*/g, '$1$2')             // negrito / itálico
+      .replace(/(\d)[\s  ](?=\d{3}(?!\d))/g, '$1')   // "20 000" → "20000" (lê "vinte mil")
+      .replace(/€\s*\/\s*kWh/g, ' euros por quilowatt-hora')
+      .replace(/€\s*\/\s*L\b/g, ' euros por litro')
+      .replace(/km\s*\/\s*ano/g, 'quilómetros por ano')
+      .replace(/\bkWh\b/g, 'quilowatt-hora')
+      .replace(/\bkm\b/g, 'quilómetros')
+      .replace(/(\d)\s*t\b/g, '$1 toneladas')
+      .replace(/CO₂|CO2/g, 'CO dois')
+      .replace(/€/g, ' euros')
+      .replace(/%/g, ' por cento')
+      .replace(/[«»"“”]/g, '')
+      .replace(/\s+([.,;:!?])/g, '$1')
+      .replace(/\.{2,}/g, '.')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // Divide em frases para começar a falar mais cedo (a 1.ª frase toca enquanto a 2.ª é gerada).
+  function splitSentences(text, maxLen = 220) {
+    const raw = String(text || '').split(/(?<=[.!?…])\s+(?=[A-ZÀ-Ý0-9"(])/).map((s) => s.trim()).filter(Boolean);
+    const out = [];
+    for (const s of raw) {
+      if (s.length <= maxLen) { out.push(s); continue; }
+      let cur = '';                                       // frase muito longa → corta em vírgulas
+      for (const part of s.split(/(?<=,)\s+/)) {
+        if ((cur + ' ' + part).trim().length > maxLen && cur) { out.push(cur.trim()); cur = part; } else cur = (cur + ' ' + part).trim();
+      }
+      if (cur) out.push(cur);
+    }
+    // junta frases muito curtas à seguinte (soa mais natural)
+    const merged = [];
+    for (const s of out) {
+      if (merged.length && merged[merged.length - 1].length < 25) merged[merged.length - 1] += ' ' + s; else merged.push(s);
+    }
+    return merged;
+  }
+
   // Modelos a tentar, por ordem (principal, depois alternativo), sem repetidos nem vazios.
   function modelsToTry(cfg) {
     return [cfg && cfg.geminiModel, cfg && cfg.geminiFallbackModel].filter((m, i, a) => m && a.indexOf(m) === i);
@@ -302,7 +347,7 @@ REGRAS:
   const formatEur = (x) => eur.format(x);
   const formatNum = (x, d = 0) => num(d).format(x);
 
-  const api = { DEFAULTS, FUEL_API_URL, costSeries, parseFuelPrices, buildReportPrompt, geminiRequestBody, CHAT_GREETING, chatSystemPrompt, chatRequestBody, parseChatTurn, applyChatOverrides, modelsToTry, isRetryableStatus, parseGeminiText, mdToHtml, simulate, simulateGroup, validateFleet, taRate, formatEur, formatNum };
+  const api = { DEFAULTS, FUEL_API_URL, costSeries, parseFuelPrices, buildReportPrompt, geminiRequestBody, CHAT_GREETING, chatSystemPrompt, chatRequestBody, parseChatTurn, applyChatOverrides, speechText, splitSentences, modelsToTry, isRetryableStatus, parseGeminiText, mdToHtml, simulate, simulateGroup, validateFleet, taRate, formatEur, formatNum };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FleetCalc = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -127,6 +127,17 @@
   .chat-form input { flex:1; font:inherit; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); }
   .chat-form input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
   .btn:disabled { opacity:.55; cursor:not-allowed; }
+  .chat-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:-8px 0 12px; }
+  .chip { font:inherit; font-size:.82rem; background:#fff; border:1.5px solid var(--line); border-radius:99px; padding:6px 12px; cursor:pointer; color:var(--ink); }
+  .chip[aria-pressed="true"] { border-color:var(--accent); background:var(--accent-soft); color:var(--accent-dark); }
+  .vstatus { font-size:.8rem; color:var(--muted); }
+  .vstatus.err { color:var(--err); }
+  .btn.mic { background:#fff; border:1.5px solid var(--line); padding:10px 14px; font-size:1.05rem; }
+  .btn.mic:hover:not(:disabled) { border-color:var(--accent); }
+  .btn.mic.rec { background:var(--err); border-color:var(--err); color:#fff; animation: pulse 1.2s ease-in-out infinite; }
+  .btn.mic.busy { cursor:progress; }
+  @keyframes pulse { 0%,100% { box-shadow:0 0 0 0 rgba(179,38,30,.45); } 50% { box-shadow:0 0 0 8px rgba(179,38,30,0); } }
+  .msg.ai.speaking { border-color:var(--accent); }
   /* Gráfico custo vs. tempo */
   :root { --fuel:#d0612b; }
   .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:.82rem; margin-bottom:6px; }
@@ -308,10 +319,15 @@
   <!-- CONVERSA COM IA (substitui os passos 2–4 no modo conversa) -->
   <section class="step" data-step="chat" data-name="Conversa">
     <h1>Conversa com o assistente</h1>
+    <div class="chat-bar">
+      <button class="chip" id="voiceToggle" type="button" aria-pressed="false" title="Ler as respostas em voz alta (voz local, pt-PT)">🔇 Voz desligada</button>
+      <span class="vstatus" id="voiceStatus">Pode escrever ou usar o microfone 🎤</span>
+    </div>
     <div class="chat" id="chatLog" aria-live="polite"></div>
     <div class="collected" id="collected"></div>
     <form class="chat-form" id="chatForm" autocomplete="off">
       <input id="chatInput" type="text" placeholder="Escreva a sua resposta…" maxlength="500" aria-label="Mensagem">
+      <button class="btn mic" id="micBtn" type="button" title="Falar (clique para começar e para terminar)" aria-label="Falar">🎤</button>
       <button class="btn primary" id="chatSend" type="submit">Enviar</button>
     </form>
   </section>
@@ -362,6 +378,7 @@
 
 <script src="config.js" onerror="window.APP_CONFIG = null"></script>
 <script src="calc.js"></script>
+<script type="module" src="voice.js"></script>
 <script>
   const C = window.FleetCalc;
   const $ = (id) => document.getElementById(id);
@@ -656,6 +673,7 @@
 
     const off = chat.busy || chat.finished || !hasKey();
     $('chatInput').disabled = off; $('chatSend').disabled = off;
+    $('micBtn').disabled = (off && !(window.Voice && window.Voice.isRecording)) || micBusy;
   }
   function chatError(text) {
     $('chatLog').insertAdjacentHTML('beforeend', `<div class="msg err">${C.mdToHtml(text)}</div>`);
@@ -674,6 +692,7 @@
       chat.history.push({ role: 'model', text: C.parseGeminiText(json), reply: turn.reply });
       chat.latest = turn;
       chat.busy = false; renderChat();
+      if (voiceOn) say(turn.reply);
       if (turn.ready) finishChat(turn);
     } catch (err) {
       chat.history.pop();                                       // retira a mensagem que falhou…
@@ -697,10 +716,95 @@
 
   $('chatForm').addEventListener('submit', (e) => {
     e.preventDefault();
+    if (window.Voice && window.Voice.isRecording) return;      // termine a gravação primeiro
     const text = $('chatInput').value.trim();
+    if (!text) return;
     $('chatInput').value = '';
+    if (window.Voice) window.Voice.stop();                      // cala o assistente quando o utilizador responde
     sendChat(text);
   });
+
+  // ---------- Voz (local): o assistente fala, o utilizador responde ao microfone ----------
+  let voiceOn = false, micBusy = false;
+  const pct = (p) => `${Math.round(p * 100)}%`;
+  function vStatus(text, isErr) { $('voiceStatus').textContent = text; $('voiceStatus').className = 'vstatus' + (isErr ? ' err' : ''); }
+  const voiceApi = () => new Promise((resolve, reject) => {     // voice.js é um módulo: pode ainda não ter carregado
+    if (window.Voice) return resolve(window.Voice);
+    const t = setTimeout(() => reject(new Error('Não foi possível carregar o módulo de voz.')), 8000);
+    window.addEventListener('voice:ready', () => { clearTimeout(t); resolve(window.Voice); }, { once: true });
+  });
+  const lastAiReply = () => { for (let i = chat.history.length - 1; i >= 0; i--) if (chat.history[i].role === 'model') return chat.history[i].reply; return ''; };
+
+  function say(text) {
+    if (!voiceOn || !window.Voice) return;
+    const bubbles = $('chatLog').querySelectorAll('.msg.ai:not(.typing)');
+    const b = bubbles[bubbles.length - 1];
+    window.Voice.speak(text).finally(() => b && b.classList.remove('speaking'));
+    if (b) b.classList.add('speaking');
+  }
+
+  $('voiceToggle').onclick = async () => {
+    const btn = $('voiceToggle');
+    if (voiceOn) {
+      voiceOn = false; btn.setAttribute('aria-pressed', 'false'); btn.textContent = '🔇 Voz desligada';
+      if (window.Voice) window.Voice.stop();
+      vStatus('Pode escrever ou usar o microfone 🎤');
+      return;
+    }
+    btn.disabled = true;
+    try {
+      const V = await voiceApi();
+      vStatus('A preparar a voz… (1.ª vez: ~63 MB, fica guardada no navegador)');
+      const engine = await V.loadTTS((p) => vStatus(`A descarregar a voz portuguesa… ${pct(p)}`));
+      voiceOn = true; btn.setAttribute('aria-pressed', 'true'); btn.textContent = '🔊 Voz ligada';
+      vStatus(engine === 'piper' ? 'Voz local pt-PT (Piper) pronta.' : 'A usar a voz pt-PT do sistema (Piper indisponível).');
+      say(lastAiReply());
+      // prepara o reconhecimento de voz em segundo plano, para o microfone responder logo
+      V.loadSTT((p) => { if (!V.isRecording) vStatus(`A preparar o microfone… ${pct(p)}`); })
+        .then(() => { if (!V.isRecording && !micBusy) vStatus('Voz pronta. Clique em 🎤 para responder a falar.'); })
+        .catch((err) => console.warn('STT:', err));
+    } catch (err) {
+      vStatus(`Voz indisponível: ${err.message}`, true);
+    } finally { btn.disabled = false; }
+  };
+
+  async function toggleMic() {
+    const btn = $('micBtn');
+    let V;
+    try { V = await voiceApi(); } catch (err) { return vStatus(err.message, true); }
+    if (!V.supported()) return vStatus('O microfone precisa de uma página segura (https ou localhost) e de um navegador recente.', true);
+
+    if (V.isRecording) {                                         // 2.º clique: parar e transcrever
+      micBusy = true; btn.classList.remove('rec'); btn.classList.add('busy'); btn.textContent = '⏳'; renderChat();
+      vStatus('A transcrever…');
+      try {
+        const text = await V.stopRecording();
+        if (!text) { vStatus('Não percebi nada — tente falar um pouco mais perto do microfone.', true); }
+        else {
+          const inp = $('chatInput');
+          inp.value = (inp.value.trim() ? inp.value.trim() + ' ' : '') + text;
+          inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length);
+          vStatus('Reveja o texto e carregue em Enter (ou Enviar).');
+        }
+      } catch (err) { vStatus(`Erro na transcrição: ${err.message}`, true); }
+      finally { micBusy = false; btn.classList.remove('busy'); btn.textContent = '🎤'; renderChat(); }
+      return;
+    }
+
+    micBusy = true; btn.classList.add('busy'); renderChat();       // 1.º clique: (carregar modelo e) começar a gravar
+    try {
+      vStatus('A preparar o reconhecimento de voz… (1.ª vez: ~77 MB, fica guardado no navegador)');
+      await V.loadSTT((p) => vStatus(`A descarregar o reconhecimento de voz… ${pct(p)}`));
+      await V.startRecording();
+      btn.classList.add('rec'); btn.textContent = '■';
+      vStatus('🔴 A ouvir… clique em ■ quando terminar.');
+    } catch (err) {
+      vStatus(err.name === 'NotAllowedError' ? 'Permissão do microfone recusada. Autorize o microfone nas definições do navegador.'
+            : err.name === 'NotFoundError' ? 'Não foi encontrado nenhum microfone.' : `Microfone indisponível: ${err.message}`, true);
+    } finally { micBusy = false; btn.classList.remove('busy'); renderChat(); }
+  }
+  $('micBtn').onclick = toggleMic;
+  window.addEventListener('voice:ready', () => window.Voice.on('autostop', () => { if (window.Voice.isRecording) toggleMic(); }), { once: true });
 
   // Sem argumentos lê o formulário; a conversa com IA passa { fleet, A, co2Mode } diretamente.
   function run(input) {

@@ -146,6 +146,25 @@ test('pedido: instrução de sistema + histórico + esquema JSON; ajustes aplica
   assert.equal(FIX.years, 5); assert.equal(B.tax.taBrackets[2].upTo, Infinity);
 });
 
+console.log('\nTeste 8 — Voz: texto preparado para ser lido em voz alta');
+test('remove Markdown e torna números/unidades "faláveis"', () => {
+  const s = C.speechText('## Resumo\n**6 carrinhas** a 35 000 km/ano.\n- Eletricidade: 0,20 €/kWh\n- CO₂ evitado: 49,10 t');
+  assert.ok(!/[*#]/.test(s), `ainda tem Markdown: ${s}`);
+  assert.ok(s.includes('35000 quilómetros por ano'), s);
+  assert.ok(s.includes('0,20 euros por quilowatt-hora'), s);
+  assert.ok(s.includes('CO dois evitado: 49,10 toneladas'), s);
+  assert.ok(s.startsWith('Resumo.'), s);
+  assert.equal(C.speechText('Poupa 175 325,66 € em 5 anos'), 'Poupa 175325,66 euros em 5 anos');
+});
+test('divide em frases, junta as muito curtas e corta as muito longas', () => {
+  assert.deepEqual(C.splitSentences('Olá! Vou fazer-lhe algumas perguntas. Quantos veículos tem?'),
+    ['Olá! Vou fazer-lhe algumas perguntas.', 'Quantos veículos tem?']);
+  const long = Array.from({ length: 30 }, (_, i) => `parte ${i}`).join(', ') + '.';
+  const parts = C.splitSentences(long);
+  assert.ok(parts.length > 1 && parts.every((p) => p.length <= 220), parts.map((p) => p.length).join(','));
+  assert.deepEqual(C.splitSentences(''), []);
+});
+
 console.log('\nTeste 6 — Gráfico custo vs. tempo');
 test('ano 0 = compra, último ano = custo total, uma linha por ano', () => {
   const r = C.simulate([cars, vans], FIX, 'grid');
